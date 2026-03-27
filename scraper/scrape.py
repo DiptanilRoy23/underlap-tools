@@ -313,7 +313,7 @@ def run():
                 p_data = entry.get("player", entry)
                 pos_code = p_data.get("position", "")
                 role = POSITION_MAP.get(pos_code)
-                if not role != "goalkeeper":
+                if not role:
                     continue
 
                 name = p_data.get("name", "unknown")
