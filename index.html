@@ -116,9 +116,7 @@ function mapRow(r) {
     // passing
     passes:        r.passes_total,
     passAcc:       r.pass_accuracy_pct,
-    fwdPasses:     r.forward_passes,
     longBalls:     r.long_balls,
-    throughBalls:  r.through_balls,
     crosses:       r.crosses,
     chancesCreated:r.chances_created,
     // defence
@@ -136,10 +134,8 @@ function mapRow(r) {
     dribbPast:     r.dribbles_past,
     blocks:        r.blocks,
     clearances:    r.clearances,
-    headedClear:   r.headed_clearances,
     errors:        r.errors_leading_goal,
     penConc:       r.penalties_conceded,
-    progCarries:   r.progressive_carries,
     // GK
     cleanSheets:   r.clean_sheets,
     saves:         r.saves,
@@ -150,7 +146,6 @@ function mapRow(r) {
     catches:       r.catches,
     crossesAgainst:r.crosses_against,
     xgConc:        r.xg_conceded,
-    psxg:          r.psxg,
     goalsAllowedP90: r.goals_allowed_per90,
   };
 }
@@ -180,8 +175,7 @@ const METRICS={
     ]},
     {section:"Passing",rows:[
       {label:"Passes total",key:"passes"},{label:"Pass accuracy %",key:"passAcc",suf:"%",nop90:1},
-      {label:"Forward passes",key:"fwdPasses"},{label:"Long balls",key:"longBalls"},{label:"Through balls",key:"throughBalls"},
-      {label:"Crosses",key:"crosses"},{label:"Chances created",key:"chancesCreated"},
+      {label:"Long balls",key:"longBalls"},{label:"Crosses",key:"crosses"},{label:"Chances created",key:"chancesCreated"},
     ]},
     {section:"Defensive contribution",rows:[
       {label:"Tackles",key:"tackles"},{label:"Interceptions",key:"interceptions"},
@@ -198,7 +192,7 @@ const METRICS={
     {section:"Defensive actions",rows:[
       {label:"Tackles",key:"tackles"},{label:"Tackle success %",key:"tacklePct",suf:"%",nop90:1},
       {label:"Interceptions",key:"interceptions"},{label:"Blocks",key:"blocks"},
-      {label:"Clearances",key:"clearances"},{label:"Headed clearances",key:"headedClear"},
+      {label:"Clearances",key:"clearances"},
       {label:"Ball recoveries",key:"ballRec"},{label:"Errors leading to goal",key:"errors"},
     ]},
     {section:"Duels & discipline",rows:[
@@ -208,7 +202,7 @@ const METRICS={
     ]},
     {section:"Ball playing",rows:[
       {label:"Passes total",key:"passes"},{label:"Pass accuracy %",key:"passAcc",suf:"%",nop90:1},
-      {label:"Long balls",key:"longBalls"},{label:"Progressive carries",key:"progCarries"},
+      {label:"Long balls",key:"longBalls"},{label:"Crosses",key:"crosses"},
     ]},
     {section:"Context",rows:[
       {label:"Minutes played",key:"mins",nop90:1},{label:"Appearances",key:"apps",nop90:1},
@@ -226,7 +220,7 @@ const METRICS={
     ]},
     {section:"Ball playing & advanced",rows:[
       {label:"Passes total",key:"passes"},{label:"Pass accuracy %",key:"passAcc",suf:"%",nop90:1},
-      {label:"Long balls",key:"longBalls"},{label:"xG conceded",key:"xgConc"},{label:"PSxG",key:"psxg"},
+      {label:"Long balls",key:"longBalls"},{label:"xG conceded",key:"xgConc"},
     ]},
     {section:"Context",rows:[
       {label:"Minutes played",key:"mins",nop90:1},{label:"Appearances",key:"apps",nop90:1},{label:"Goals allowed per 90",key:"goalsAllowedP90",nop90:1},
