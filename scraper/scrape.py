@@ -1,146 +1,303 @@
 import os
 import time
-import requests
+import json
+from dotenv import load_dotenv
 from supabase import create_client
+from playwright.sync_api import sync_playwright
 
-# ── Config ────────────────────────────────────────────────────
+load_dotenv()
+
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SUPABASE_KEY = os.environ["SUPABASE_KEY"]
-SEASON_ID    = 61627
 SEASON_LABEL = "2025/26"
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Origin": "https://www.sofascore.com",
-    "Referer": "https://www.sofascore.com/",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-site",
-    "Cache-Control": "no-cache",
+# ─── League config ────────────────────────────────────────────────
+# unique_tournament_id = Sofascore's ID for the competition
+# season_id           = Sofascore's ID for the 2025/26 season of that competition
+#
+# HOW TO FIND THESE:
+#   1. Go to sofascore.com, open a league page (e.g. Premier League)
+#   2. Open browser DevTools → Network tab
+#   3. Look for API calls like /unique-tournament/17/season/76986
+#   4. 17 = unique_tournament_id, 76986 = season_id
+#
+# IMPORTANT: Season IDs change every year. You MUST update these each summer.
+# The ones below marked ??? need to be discovered (see STEP 1 instructions at bottom).
+
+LEAGUES = {
+    "premier_league": {"unique_tournament_id": 17,   "season_id": 76986},
+    "la_liga":        {"unique_tournament_id": 8,    "season_id": 77559},
+    "serie_a":        {"unique_tournament_id": 23,   "season_id": 76457},
+    "bundesliga":     {"unique_tournament_id": 35,   "season_id": 77333},
+    "ligue_1":        {"unique_tournament_id": 34,   "season_id": 77356},
 }
 
-# ── Sofascore team IDs matching our clubs table ───────────────
+# Each club: (name, sofascore_team_id, league_key)
 CLUBS = [
-    ("Arsenal",           42),
-    ("Aston Villa",       40),
-    ("Chelsea",           38),
-    ("Liverpool",         44),
-    ("Manchester City",   17),
-    ("Manchester United", 35),
-    ("Newcastle United",  39),
-    ("Tottenham Hotspur", 33),
-    ("Real Madrid",        2),
-    ("Barcelona",          3),
-    ("Atlético Madrid",   45),
-    ("AC Milan",         118),
-    ("Inter Milan",      110),
-    ("Napoli",           130),
-    ("Como",            5821),
-    ("Juventus",         114),
-    ("Bayern Munich",     36),
-    ("Borussia Dortmund", 37),
-    ("RB Leipzig",      1062),
-    ("PSG",               96),
+    # Premier League
+    ("Arsenal",           42,   "premier_league"),
+    ("Aston Villa",       40,   "premier_league"),
+    ("Chelsea",           38,   "premier_league"),
+    ("Liverpool",         44,   "premier_league"),
+    ("Manchester City",   17,   "premier_league"),
+    ("Manchester United", 35,   "premier_league"),
+    ("Newcastle United",  39,   "premier_league"),
+    ("Tottenham Hotspur", 33,   "premier_league"),
+    # La Liga
+    ("Real Madrid",       2829,  "la_liga"),
+    ("Barcelona",         2817,  "la_liga"),
+    ("Atlético Madrid",   2836,  "la_liga"),
+    # Serie A
+    ("AC Milan",          2692,  "serie_a"),
+    ("Inter Milan",       2697,  "serie_a"),
+    ("Napoli",            2714,  "serie_a"),
+    ("Como",              2704,  "serie_a"),
+    ("Juventus",          2687,  "serie_a"),
+    # Bundesliga
+    ("Bayern Munich",     2672,  "bundesliga"),
+    ("Borussia Dortmund", 2673,  "bundesliga"),
+    ("RB Leipzig",       36360,  "bundesliga"),
+    # Ligue 1
+    ("PSG",               1644,  "ligue_1"),
 ]
 
-# Position mapping from Sofascore to our roles
 POSITION_MAP = {
-    "G":  "goalkeeper",
-    "D":  "defender",
-    "M":  "midfielder",
-    "F":  "attacker",
+    "G": "goalkeeper",
+    "D": "defender",
+    "M": "midfielder",
+    "F": "attacker",
 }
 
 
-def get_squad(team_id: int) -> list:
+# ─── Core functions ───────────────────────────────────────────────
+
+def fetch_json(page, url, retries=2):
+    """Fetch a Sofascore API URL via Playwright and parse JSON from the page body."""
+    for attempt in range(retries + 1):
+        try:
+            response = page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            if response and response.status >= 400:
+                print(f"    HTTP {response.status} for {url}")
+                if attempt < retries:
+                    time.sleep(3)
+                    continue
+                return None
+            text = page.inner_text("body")
+            data = json.loads(text)
+            # Sofascore returns {"error": ...} for bad requests
+            if "error" in data and "statistics" not in data:
+                print(f"    API error response for {url}")
+                if attempt < retries:
+                    time.sleep(3)
+                    continue
+                return None
+            return data
+        except Exception as e:
+            print(f"    Error fetching {url}: {e}")
+            if attempt < retries:
+                time.sleep(3)
+                continue
+            return None
+    return None
+
+
+def get_squad(page, team_id):
     url = f"https://api.sofascore.com/api/v1/team/{team_id}/players"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
-        if r.status_code == 200:
-            data = r.json()
-            return data.get("players", [])
-        print(f"  ⚠ Squad fetch status {r.status_code} for team {team_id}")
-        return []
-    except Exception as e:
-        print(f"  ✗ Squad fetch error for team {team_id}: {e}")
-        return []
+    data = fetch_json(page, url)
+    if data:
+        return data.get("players", [])
+    return []
 
 
-def get_player_stats(sofascore_id: int) -> dict | None:
-    url = f"https://api.sofascore.com/api/v1/player/{sofascore_id}/statistics/season/{SEASON_ID}"
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=15)
-        if r.status_code == 200:
-            return r.json()
-        print(f"    ⚠ Stats status {r.status_code} for player {sofascore_id}")
-        return None
-    except Exception as e:
-        print(f"    ✗ Stats error for player {sofascore_id}: {e}")
-        return None
+def get_player_stats(page, sofascore_id, unique_tournament_id, season_id):
+    """
+    Correct endpoint format:
+    /api/v1/player/{id}/unique-tournament/{tournament_id}/season/{season_id}/statistics/overall
+    """
+    url = (
+        f"https://api.sofascore.com/api/v1/player/{sofascore_id}"
+        f"/unique-tournament/{unique_tournament_id}"
+        f"/season/{season_id}"
+        f"/statistics/overall"
+    )
+    data = fetch_json(page, url)
+    return data
 
 
-def parse_stats(raw: dict) -> dict:
+def parse_stats(raw):
+    """
+    Maps Sofascore API JSON keys to our Supabase column names.
+    
+    Key fixes applied (verified against real Sofascore response):
+      - fouls_won:        fouledTotal → wasFouled
+      - fouls_committed:  foulsCommitted → fouls
+      - ball_recoveries:  ballRecoveries → ballRecovery
+      - clean_sheets:     cleanSheets → cleanSheet
+      - penalties_saved:  penaltySaves → penaltySave
+      - duels_won:        duelsWon → totalDuelsWon
+      - duels_total:      derived from totalDuelsWon + duelLost
+      - pass_accuracy:    accuratePasses → accuratePassesPercentage
+      - crosses_against:  crossesTotal → crossesNotClaimed
+    
+    Also derives: non_penalty_goals, shot_accuracy_pct, conversion_rate,
+                  tackle_success_pct, duels_won_pct, dribble_success_pct,
+                  save_pct, goals_allowed_per90, ground/aerial duels totals
+    
+    Not available from Sofascore (will be NULL):
+      - forward_passes, through_balls, chances_created,
+        headed_clearances, progressive_carries
+    """
     s = raw.get("statistics", {})
+
+    # ── Raw values we'll reuse in derivations ──
+    goals          = s.get("goals")
+    minutes        = s.get("minutesPlayed")
+    shots_total    = s.get("totalShots")
+    shots_on       = s.get("shotsOnTarget")
+    saves          = s.get("saves")
+    goals_conceded = s.get("goalsConceded")
+    tackles_total  = s.get("tackles")
+    tackles_won    = s.get("tacklesWon")
+    duels_won      = s.get("totalDuelsWon")
+    duels_lost     = s.get("duelLost")
+    ground_won     = s.get("groundDuelsWon")
+    ground_pct     = s.get("groundDuelsWonPercentage")
+    aerial_won     = s.get("aerialDuelsWon")
+    aerial_pct     = s.get("aerialDuelsWonPercentage")
+    dribbles_done  = s.get("successfulDribbles")
+    dribbles_pct   = s.get("successfulDribblesPercentage")
+    penalty_goals  = s.get("penaltyGoals") or 0
+
+    # ── Derived metrics ──
+    duels_total = (
+        (duels_won or 0) + (duels_lost or 0)
+        if duels_won is not None or duels_lost is not None
+        else None
+    )
+    duels_won_pct = (
+        round((duels_won / duels_total) * 100, 1)
+        if duels_won and duels_total
+        else None
+    )
+    ground_total = (
+        round(ground_won / (ground_pct / 100))
+        if ground_won and ground_pct
+        else None
+    )
+    aerial_total = (
+        round(aerial_won / (aerial_pct / 100))
+        if aerial_won and aerial_pct
+        else None
+    )
+    tackle_success_pct = (
+        round((tackles_won / tackles_total) * 100, 1)
+        if tackles_won and tackles_total
+        else None
+    )
+    shot_accuracy_pct = (
+        round((shots_on / shots_total) * 100, 1)
+        if shots_on and shots_total
+        else None
+    )
+    conversion_rate = (
+        round((goals / shots_total) * 100, 1)
+        if goals and shots_total
+        else None
+    )
+    non_penalty_goals = (
+        (goals or 0) - penalty_goals
+        if goals is not None
+        else None
+    )
+    save_pct = (
+        round((saves / (saves + goals_conceded)) * 100, 1)
+        if saves and goals_conceded is not None and (saves + goals_conceded) > 0
+        else None
+    )
+    goals_allowed_per90 = (
+        round((goals_conceded * 90 / minutes), 2)
+        if goals_conceded is not None and minutes
+        else None
+    )
+
     return {
+        # ── Context ──
         "appearances":         s.get("appearances"),
-        "minutes_played":      s.get("minutesPlayed"),
-        "goals":               s.get("goals"),
+        "minutes_played":      minutes,
+        # ── Output ──
+        "goals":               goals,
         "assists":             s.get("assists"),
         "xg":                  s.get("expectedGoals"),
         "xa":                  s.get("expectedAssists"),
-        "shots_total":         s.get("totalShots"),
-        "shots_on_target":     s.get("shotsOnTarget"),
+        "non_penalty_goals":   non_penalty_goals,
+        # ── Shooting ──
+        "shots_total":         shots_total,
+        "shots_on_target":     shots_on,
+        "shot_accuracy_pct":   shot_accuracy_pct,
+        "conversion_rate":     conversion_rate,
+        "penalties_scored":    s.get("penaltyGoals"),
+        "penalties_taken":     s.get("penaltiesTaken"),
+        # ── Creation ──
         "key_passes":          s.get("keyPasses"),
         "big_chances_created": s.get("bigChancesCreated"),
-        "dribbles_completed":  s.get("successfulDribbles"),
-        "fouls_won":           s.get("fouledTotal"),
+        # ── Dribbling ──
+        "dribbles_completed":  dribbles_done,
+        "dribble_success_pct": dribbles_pct,
+        # ── Fouls ──
+        "fouls_won":           s.get("wasFouled"),           # was: fouledTotal
+        "fouls_committed":     s.get("fouls"),               # was: foulsCommitted
+        # ── Passing ──
         "passes_total":        s.get("totalPasses"),
-        "pass_accuracy_pct":   s.get("accuratePasses"),
-        "forward_passes":      s.get("forwardPasses"),
+        "pass_accuracy_pct":   s.get("accuratePassesPercentage"),  # was: accuratePasses (raw count)
         "long_balls":          s.get("accurateLongBalls"),
-        "through_balls":       s.get("accurateThroughBalls"),
         "crosses":             s.get("totalCross"),
-        "chances_created":     s.get("chancesCreated"),
-        "tackles":             s.get("tackles"),
+        # ── Defence ──
+        "tackles":             tackles_total,
+        "tackle_success_pct":  tackle_success_pct,
         "interceptions":       s.get("interceptions"),
-        "duels_won":           s.get("duelsWon"),
-        "duels_total":         s.get("duelsTotal"),
-        "ground_duels_won":    s.get("groundDuelsWon"),
-        "ground_duels_total":  s.get("groundDuelsTotal"),
-        "aerial_duels_won":    s.get("aerialDuelsWon"),
-        "aerial_duels_total":  s.get("aerialDuelsTotal"),
-        "fouls_committed":     s.get("foulsCommitted"),
-        "ball_recoveries":     s.get("ballRecoveries"),
+        "duels_won":           duels_won,                    # was: duelsWon
+        "duels_total":         duels_total,                  # derived: won + lost
+        "duels_won_pct":       duels_won_pct,                # derived
+        "ground_duels_won":    ground_won,
+        "ground_duels_total":  ground_total,                 # derived from won + pct
+        "aerial_duels_won":    aerial_won,
+        "aerial_duels_total":  aerial_total,                 # derived from won + pct
+        "ball_recoveries":     s.get("ballRecovery"),        # was: ballRecoveries
         "dribbles_past":       s.get("dribbledPast"),
-        "progressive_carries": s.get("progressiveCarries"),
         "blocks":              s.get("blockedShots"),
         "clearances":          s.get("clearances"),
         "errors_leading_goal": s.get("errorLeadToGoal"),
         "penalties_conceded":  s.get("penaltyConceded"),
-        "clean_sheets":        s.get("cleanSheets"),
-        "saves":               s.get("saves"),
-        "goals_conceded":      s.get("goalsConceded"),
-        "penalties_saved":     s.get("penaltySaves"),
+        # ── GK ──
+        "clean_sheets":        s.get("cleanSheet"),          # was: cleanSheets
+        "saves":               saves,
+        "save_pct":            save_pct,                     # derived
+        "goals_conceded":      goals_conceded,
+        "penalties_saved":     s.get("penaltySave"),         # was: penaltySaves
         "sweeper_clearances":  s.get("punches"),
         "catches":             s.get("runsOut"),
-        "crosses_against":     s.get("crossesTotal"),
+        "crosses_against":     s.get("crossesNotClaimed"),   # was: crossesTotal
         "xg_conceded":         s.get("expectedGoalsConceeded"),
         "psxg":                s.get("xgSave"),
+        "goals_allowed_per90": goals_allowed_per90,          # derived
+        # ── Not available from Sofascore — will stay NULL ──
+        "forward_passes":      None,
+        "through_balls":       None,
+        "chances_created":     None,
+        "headed_clearances":   None,
+        "progressive_carries": None,
     }
 
 
-def upsert_player(player_data: dict, club_id: int, role: str) -> int | None:
+def upsert_player(player_data, club_id, role):
     p = player_data.get("player", player_data)
-    sofascore_id  = p.get("id")
-    name          = p.get("name")
-    short_name    = p.get("shortName", name)
-    position      = p.get("position", "")
-    nationality   = p.get("country", {}).get("name", "") if isinstance(p.get("country"), dict) else ""
+    sofascore_id = p.get("id")
+    name         = p.get("name")
+    short_name   = p.get("shortName", name)
+    position     = p.get("position", "")
+    nationality  = p.get("country", {}).get("name", "") if isinstance(p.get("country"), dict) else ""
 
     if not sofascore_id or not name:
         return None
@@ -161,73 +318,105 @@ def upsert_player(player_data: dict, club_id: int, role: str) -> int | None:
 
 
 def run():
-    print(f"🚀 Underlap scraper starting — season {SEASON_LABEL}\n")
-    total_success, total_failed = 0, 0
+    print(f"Underlap scraper starting — season {SEASON_LABEL}\n")
+    total_success, total_failed, total_skipped = 0, 0, 0
 
-    for club_name, team_id in CLUBS:
-        print(f"\n🏟 {club_name} (team_id: {team_id})")
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        )
+        page = context.new_page()
 
-        # Get club_id from Supabase
-        club = supabase.table("clubs").select("id").eq("name", club_name).single().execute()
-        if not club.data:
-            print(f"  ✗ Club not found in DB: {club_name}")
-            continue
-        club_id = club.data["id"]
-
-        # Get squad from Sofascore
-        squad = get_squad(team_id)
-        if not squad:
-            print(f"  ✗ No squad returned for {club_name}")
-            continue
-
-        print(f"  Found {len(squad)} players in squad")
+        # Visit Sofascore homepage first to get cookies
+        print("Warming up browser...")
+        page.goto("https://www.sofascore.com", wait_until="domcontentloaded", timeout=60000)
         time.sleep(3)
 
-        for entry in squad:
-            p = entry.get("player", entry)
-            pos_code = p.get("position", "")
-            role = POSITION_MAP.get(pos_code)
+        # Season IDs are hardcoded in LEAGUES config above
+        print("Season IDs loaded.\n")
 
-            # Skip if position unknown
-            if not role:
+        for club_name, team_id, league_key in CLUBS:
+            print(f"\n{'='*50}")
+            print(f"{club_name} ({league_key})")
+            print(f"{'='*50}")
+
+            league = LEAGUES.get(league_key)
+            if not league or not league["season_id"]:
+                print(f"  ⏭️  Skipping — no season_id for {league_key}")
                 continue
 
-            name = p.get("name", "unknown")
-            sofascore_id = p.get("id")
-            print(f"  → {name} ({sofascore_id}) [{role}]")
+            ut_id     = league["unique_tournament_id"]
+            season_id = league["season_id"]
 
-            player_id = upsert_player(entry, club_id, role)
-            if not player_id:
-                total_failed += 1
+            club = supabase.table("clubs").select("id").eq("name", club_name).single().execute()
+            if not club.data:
+                print(f"  ❌ Club not found in Supabase: {club_name}")
+                continue
+            club_id = club.data["id"]
+
+            squad = get_squad(page, team_id)
+            if not squad:
+                print(f"  ❌ No squad returned (check team_id={team_id})")
                 continue
 
-            raw = get_player_stats(sofascore_id)
-            if not raw:
-                total_failed += 1
-                time.sleep(2)
-                continue
-
-            stats = parse_stats(raw)
-            stats["player_id"] = player_id
-            stats["season"]    = SEASON_LABEL
-
-            supabase.table("player_stats").upsert(
-                stats, on_conflict="player_id,season"
-            ).execute()
-
-            print(f"    ✓ {stats.get('goals')}G {stats.get('assists')}A in {stats.get('appearances')} apps")
-            total_success += 1
+            print(f"  Found {len(squad)} players")
             time.sleep(2)
 
-        # Log scrape for this club
-        supabase.table("scrape_log").insert({
-            "club_id":  club_id,
-            "season":   SEASON_LABEL,
-            "status":   "success",
-            "notes":    f"{len(squad)} players in squad",
-        }).execute()
+            club_success = 0
+            for entry in squad:
+                p_data = entry.get("player", entry)
+                pos_code = p_data.get("position", "")
+                role = POSITION_MAP.get(pos_code)
+                if not role:
+                    continue
 
-    print(f"\n✅ Done — {total_success} success, {total_failed} failed")
+                name = p_data.get("name", "unknown")
+                sofascore_id = p_data.get("id")
+                print(f"  → {name}", end="")
+
+                player_id = upsert_player(entry, club_id, role)
+                if not player_id:
+                    print(" — ❌ upsert failed")
+                    total_failed += 1
+                    continue
+
+                raw = get_player_stats(page, sofascore_id, ut_id, season_id)
+                if not raw or "statistics" not in raw:
+                    print(" — ⏭️  no stats (may not have played)")
+                    total_skipped += 1
+                    time.sleep(1.5)
+                    continue
+
+       		print(json.dumps(raw, indent=2)); exit()    
+       		stats = parse_stats(raw)
+                stats["player_id"] = player_id
+                stats["season"]    = SEASON_LABEL
+
+                supabase.table("player_stats").upsert(
+                    stats, on_conflict="player_id,season"
+                ).execute()
+
+                goals = stats.get('goals', 0) or 0
+                assists = stats.get('assists', 0) or 0
+                apps = stats.get('appearances', 0) or 0
+                print(f" — ✅ {goals}G {assists}A in {apps} apps")
+                total_success += 1
+                club_success += 1
+                time.sleep(1.5)
+
+            supabase.table("scrape_log").insert({
+                "club_id": club_id,
+                "season":  SEASON_LABEL,
+                "status":  "success" if club_success > 0 else "partial",
+                "notes":   f"{len(squad)} squad, {club_success} with stats",
+            }).execute()
+
+        browser.close()
+
+    print(f"\n{'='*50}")
+    print(f"DONE — ✅ {total_success} success | ⏭️ {total_skipped} no stats | ❌ {total_failed} failed")
+    print(f"{'='*50}")
 
 
 if __name__ == "__main__":
