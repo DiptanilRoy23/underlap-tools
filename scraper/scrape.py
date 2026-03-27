@@ -14,18 +14,6 @@ SEASON_LABEL = "2025/26"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ─── League config ────────────────────────────────────────────────
-# unique_tournament_id = Sofascore's ID for the competition
-# season_id           = Sofascore's ID for the 2025/26 season of that competition
-#
-# HOW TO FIND THESE:
-#   1. Go to sofascore.com, open a league page (e.g. Premier League)
-#   2. Open browser DevTools → Network tab
-#   3. Look for API calls like /unique-tournament/17/season/76986
-#   4. 17 = unique_tournament_id, 76986 = season_id
-#
-# IMPORTANT: Season IDs change every year. You MUST update these each summer.
-# The ones below marked ??? need to be discovered (see STEP 1 instructions at bottom).
-
 LEAGUES = {
     "premier_league": {"unique_tournament_id": 17,   "season_id": 76986},
     "la_liga":        {"unique_tournament_id": 8,    "season_id": 77559},
@@ -34,7 +22,6 @@ LEAGUES = {
     "ligue_1":        {"unique_tournament_id": 34,   "season_id": 77356},
 }
 
-# Each club: (name, sofascore_team_id, league_key)
 CLUBS = [
     # Premier League
     ("Arsenal",           42,   "premier_league"),
@@ -74,7 +61,6 @@ POSITION_MAP = {
 # ─── Core functions ───────────────────────────────────────────────
 
 def fetch_json(page, url, retries=2):
-    """Fetch a Sofascore API URL via Playwright and parse JSON from the page body."""
     for attempt in range(retries + 1):
         try:
             response = page.goto(url, wait_until="domcontentloaded", timeout=20000)
@@ -86,7 +72,6 @@ def fetch_json(page, url, retries=2):
                 return None
             text = page.inner_text("body")
             data = json.loads(text)
-            # Sofascore returns {"error": ...} for bad requests
             if "error" in data and "statistics" not in data:
                 print(f"    API error response for {url}")
                 if attempt < retries:
@@ -112,10 +97,6 @@ def get_squad(page, team_id):
 
 
 def get_player_stats(page, sofascore_id, unique_tournament_id, season_id):
-    """
-    Correct endpoint format:
-    /api/v1/player/{id}/unique-tournament/{tournament_id}/season/{season_id}/statistics/overall
-    """
     url = (
         f"https://api.sofascore.com/api/v1/player/{sofascore_id}"
         f"/unique-tournament/{unique_tournament_id}"
@@ -127,31 +108,8 @@ def get_player_stats(page, sofascore_id, unique_tournament_id, season_id):
 
 
 def parse_stats(raw):
-    """
-    Maps Sofascore API JSON keys to our Supabase column names.
-    
-    Key fixes applied (verified against real Sofascore response):
-      - fouls_won:        fouledTotal → wasFouled
-      - fouls_committed:  foulsCommitted → fouls
-      - ball_recoveries:  ballRecoveries → ballRecovery
-      - clean_sheets:     cleanSheets → cleanSheet
-      - penalties_saved:  penaltySaves → penaltySave
-      - duels_won:        duelsWon → totalDuelsWon
-      - duels_total:      derived from totalDuelsWon + duelLost
-      - pass_accuracy:    accuratePasses → accuratePassesPercentage
-      - crosses_against:  crossesTotal → crossesNotClaimed
-    
-    Also derives: non_penalty_goals, shot_accuracy_pct, conversion_rate,
-                  tackle_success_pct, duels_won_pct, dribble_success_pct,
-                  save_pct, goals_allowed_per90, ground/aerial duels totals
-    
-    Not available from Sofascore (will be NULL):
-      - forward_passes, through_balls, chances_created,
-        headed_clearances, progressive_carries
-    """
     s = raw.get("statistics", {})
 
-    # ── Raw values we'll reuse in derivations ──
     goals          = s.get("goals")
     minutes        = s.get("minutesPlayed")
     shots_total    = s.get("totalShots")
@@ -170,7 +128,6 @@ def parse_stats(raw):
     dribbles_pct   = s.get("successfulDribblesPercentage")
     penalty_goals  = s.get("penaltyGoals") or 0
 
-    # ── Derived metrics ──
     duels_total = (
         (duels_won or 0) + (duels_lost or 0)
         if duels_won is not None or duels_lost is not None
@@ -223,66 +180,56 @@ def parse_stats(raw):
     )
 
     return {
-        # ── Context ──
         "appearances":         s.get("appearances"),
         "minutes_played":      minutes,
-        # ── Output ──
         "goals":               goals,
         "assists":             s.get("assists"),
         "xg":                  s.get("expectedGoals"),
         "xa":                  s.get("expectedAssists"),
         "non_penalty_goals":   non_penalty_goals,
-        # ── Shooting ──
         "shots_total":         shots_total,
         "shots_on_target":     shots_on,
         "shot_accuracy_pct":   shot_accuracy_pct,
         "conversion_rate":     conversion_rate,
         "penalties_scored":    s.get("penaltyGoals"),
         "penalties_taken":     s.get("penaltiesTaken"),
-        # ── Creation ──
         "key_passes":          s.get("keyPasses"),
         "big_chances_created": s.get("bigChancesCreated"),
-        # ── Dribbling ──
         "dribbles_completed":  dribbles_done,
         "dribble_success_pct": dribbles_pct,
-        # ── Fouls ──
-        "fouls_won":           s.get("wasFouled"),           # was: fouledTotal
-        "fouls_committed":     s.get("fouls"),               # was: foulsCommitted
-        # ── Passing ──
+        "fouls_won":           s.get("wasFouled"),
+        "fouls_committed":     s.get("fouls"),
         "passes_total":        s.get("totalPasses"),
-        "pass_accuracy_pct":   s.get("accuratePassesPercentage"),  # was: accuratePasses (raw count)
+        "pass_accuracy_pct":   s.get("accuratePassesPercentage"),
         "long_balls":          s.get("accurateLongBalls"),
         "crosses":             s.get("totalCross"),
-        # ── Defence ──
         "tackles":             tackles_total,
         "tackle_success_pct":  tackle_success_pct,
         "interceptions":       s.get("interceptions"),
-        "duels_won":           duels_won,                    # was: duelsWon
-        "duels_total":         duels_total,                  # derived: won + lost
-        "duels_won_pct":       duels_won_pct,                # derived
+        "duels_won":           duels_won,
+        "duels_total":         duels_total,
+        "duels_won_pct":       duels_won_pct,
         "ground_duels_won":    ground_won,
-        "ground_duels_total":  ground_total,                 # derived from won + pct
+        "ground_duels_total":  ground_total,
         "aerial_duels_won":    aerial_won,
-        "aerial_duels_total":  aerial_total,                 # derived from won + pct
-        "ball_recoveries":     s.get("ballRecovery"),        # was: ballRecoveries
+        "aerial_duels_total":  aerial_total,
+        "ball_recoveries":     s.get("ballRecovery"),
         "dribbles_past":       s.get("dribbledPast"),
         "blocks":              s.get("blockedShots"),
         "clearances":          s.get("clearances"),
         "errors_leading_goal": s.get("errorLeadToGoal"),
         "penalties_conceded":  s.get("penaltyConceded"),
-        # ── GK ──
-        "clean_sheets":        s.get("cleanSheet"),          # was: cleanSheets
+        "clean_sheets":        s.get("cleanSheet"),
         "saves":               saves,
-        "save_pct":            save_pct,                     # derived
+        "save_pct":            save_pct,
         "goals_conceded":      goals_conceded,
-        "penalties_saved":     s.get("penaltySave"),         # was: penaltySaves
+        "penalties_saved":     s.get("penaltySave"),
         "sweeper_clearances":  s.get("punches"),
         "catches":             s.get("runsOut"),
-        "crosses_against":     s.get("crossesNotClaimed"),   # was: crossesTotal
+        "crosses_against":     s.get("crossesNotClaimed"),
         "xg_conceded":         s.get("expectedGoalsConceeded"),
         "psxg":                s.get("xgSave"),
-        "goals_allowed_per90": goals_allowed_per90,          # derived
-        # ── Not available from Sofascore — will stay NULL ──
+        "goals_allowed_per90": goals_allowed_per90,
         "forward_passes":      None,
         "through_balls":       None,
         "chances_created":     None,
@@ -328,12 +275,10 @@ def run():
         )
         page = context.new_page()
 
-        # Visit Sofascore homepage first to get cookies
         print("Warming up browser...")
         page.goto("https://www.sofascore.com", wait_until="domcontentloaded", timeout=60000)
         time.sleep(3)
 
-        # Season IDs are hardcoded in LEAGUES config above
         print("Season IDs loaded.\n")
 
         for club_name, team_id, league_key in CLUBS:
@@ -388,8 +333,10 @@ def run():
                     time.sleep(1.5)
                     continue
 
-       		print(json.dumps(raw, indent=2)); exit()    
-       		stats = parse_stats(raw)
+                print(json.dumps(raw, indent=2))
+                exit()
+
+                stats = parse_stats(raw)
                 stats["player_id"] = player_id
                 stats["season"]    = SEASON_LABEL
 
