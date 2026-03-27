@@ -44,7 +44,8 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#fff;color:#0f0f0f
 .bar-lead{background:#639922}
 .bar-trail{background:#D3D1C7}
 .uw-empty{text-align:center;padding:2rem;font-size:14px;color:#777}
-.uw-notice{font-size:11px;color:#777;padding:6px 10px;border-radius:8px;background:#f5f4f0;border:1px solid rgba(0,0,0,0.08);margin-bottom:1rem}
+.uw-loading{text-align:center;padding:2rem;font-size:14px;color:#777}
+.uw-error{text-align:center;padding:1rem;font-size:13px;color:#993C1D;background:#FAECE7;border-radius:8px;margin-bottom:1rem}
 </style>
 </head>
 <body>
@@ -56,11 +57,11 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#fff;color:#0f0f0f
   <button class="uw-role" onclick="setRole('goalkeeper',this)">Goalkeepers</button>
 </div>
 
-<div class="uw-notice">Stats shown are sample data. Live 2025/26 season data coming soon.</div>
+<div id="uw-status"></div>
 
 <div class="uw-selectors">
-  <div class="uw-sel"><label>Player 1</label><select id="p1sel" onchange="render()"><option value="">Select player...</option></select></div>
-  <div class="uw-sel"><label>Player 2</label><select id="p2sel" onchange="render()"><option value="">Select player...</option></select></div>
+  <div class="uw-sel"><label>Player 1</label><select id="p1sel" onchange="render()"><option value="">Loading...</option></select></div>
+  <div class="uw-sel"><label>Player 2</label><select id="p2sel" onchange="render()"><option value="">Loading...</option></select></div>
 </div>
 
 <div class="uw-toggle-row">
@@ -75,37 +76,84 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#fff;color:#0f0f0f
   </div>
 </div>
 
-<div id="uw-out"><div class="uw-empty">Select two players to compare</div></div>
+<div id="uw-out"><div class="uw-loading">Loading player data...</div></div>
 
 <script>
-const PLAYERS={
-  attacker:[
-    {name:"Mohamed Salah",club:"Liverpool",goals:28,assists:18,xg:22.4,xa:13.1,npGoals:26,shots:112,shotsOT:58,shotAcc:51.8,conv:25.0,keyPasses:68,bigChances:14,dribbles:72,dribblePct:61.2,foulsWon:38,mins:2610,apps:29},
-    {name:"Erling Haaland",club:"Man City",goals:24,assists:5,xg:21.8,xa:4.2,npGoals:22,shots:98,shotsOT:52,shotAcc:53.1,conv:24.5,keyPasses:28,bigChances:8,dribbles:22,dribblePct:44.0,foulsWon:28,mins:2430,apps:27},
-    {name:"Cole Palmer",club:"Chelsea",goals:18,assists:12,xg:15.2,xa:10.4,npGoals:16,shots:88,shotsOT:44,shotAcc:50.0,conv:20.5,keyPasses:72,bigChances:16,dribbles:62,dribblePct:58.1,foulsWon:44,mins:2520,apps:28},
-    {name:"Bukayo Saka",club:"Arsenal",goals:14,assists:11,xg:12.8,xa:9.4,npGoals:14,shots:76,shotsOT:38,shotAcc:50.0,conv:18.4,keyPasses:64,bigChances:12,dribbles:68,dribblePct:62.4,foulsWon:52,mins:2610,apps:29},
-    {name:"Alexander Isak",club:"Newcastle",goals:22,assists:6,xg:19.2,xa:5.6,npGoals:20,shots:94,shotsOT:48,shotAcc:51.1,conv:23.4,keyPasses:32,bigChances:10,dribbles:44,dribblePct:52.4,foulsWon:34,mins:2430,apps:27},
-    {name:"Son Heung-min",club:"Spurs",goals:16,assists:10,xg:13.4,xa:8.8,npGoals:16,shots:82,shotsOT:42,shotAcc:51.2,conv:19.5,keyPasses:58,bigChances:11,dribbles:54,dribblePct:57.4,foulsWon:42,mins:2520,apps:28},
-  ],
-  midfielder:[
-    {name:"Martin Odegaard",club:"Arsenal",goals:9,assists:10,xg:7.8,xa:9.2,keyPasses:88,bigChances:18,passes:1820,passAcc:88.4,fwdPasses:612,longBalls:124,throughBalls:18,crosses:42,chancesCreated:98,tackles:38,interceptions:22,duelsWon:88,duelsWonPct:62.0,groundDW:62,aerialDW:26,foulsComm:18,ballRec:142,mins:2520,apps:28,dribbles:44,foulsWon:38,dribbPast:22,progCarries:88},
-    {name:"Declan Rice",club:"Arsenal",goals:5,assists:7,xg:3.4,xa:6.2,keyPasses:64,bigChances:10,passes:2140,passAcc:89.2,fwdPasses:724,longBalls:188,throughBalls:8,crosses:28,chancesCreated:72,tackles:68,interceptions:38,duelsWon:122,duelsWonPct:64.9,groundDW:88,aerialDW:34,foulsComm:22,ballRec:188,mins:2610,apps:29,dribbles:28,foulsWon:32,dribbPast:14,progCarries:72},
-    {name:"Bruno Fernandes",club:"Man Utd",goals:12,assists:14,xg:10.2,xa:12.8,keyPasses:96,bigChances:20,passes:1980,passAcc:84.2,fwdPasses:688,longBalls:144,throughBalls:22,crosses:64,chancesCreated:112,tackles:32,interceptions:16,duelsWon:78,duelsWonPct:58.2,groundDW:52,aerialDW:26,foulsComm:28,ballRec:112,mins:2700,apps:30,dribbles:52,foulsWon:44,dribbPast:28,progCarries:68},
-    {name:"Bruno Guimaraes",club:"Newcastle",goals:7,assists:8,xg:5.8,xa:7.4,keyPasses:72,bigChances:14,passes:2080,passAcc:87.6,fwdPasses:698,longBalls:168,throughBalls:12,crosses:32,chancesCreated:84,tackles:74,interceptions:42,duelsWon:132,duelsWonPct:66.7,groundDW:92,aerialDW:40,foulsComm:26,ballRec:196,mins:2700,apps:30,dribbles:36,foulsWon:38,dribbPast:18,progCarries:82},
-  ],
-  defender:[
-    {name:"William Saliba",club:"Arsenal",tackles:56,tacklePct:72.4,interceptions:52,blocks:28,clearances:88,headedClear:44,ballRec:164,errors:0,groundDW:88,aerialDW:42,duelsWonPct:68.2,foulsComm:14,penConc:0,passes:1240,passAcc:91.8,longBalls:164,progCarries:42,mins:2790,apps:31,goals:1,assists:0,dribbPast:12,cleanSheets:14},
-    {name:"Virgil van Dijk",club:"Liverpool",tackles:44,tacklePct:68.2,interceptions:44,blocks:22,clearances:102,headedClear:58,ballRec:148,errors:1,groundDW:72,aerialDW:52,duelsWonPct:65.7,foulsComm:18,penConc:0,passes:1380,passAcc:90.4,longBalls:188,progCarries:38,mins:2790,apps:31,goals:3,assists:1,dribbPast:8,cleanSheets:16},
-    {name:"Ruben Dias",club:"Man City",tackles:48,tacklePct:70.8,interceptions:46,blocks:24,clearances:94,headedClear:48,ballRec:152,errors:0,groundDW:78,aerialDW:46,duelsWonPct:66.9,foulsComm:16,penConc:1,passes:1420,passAcc:92.2,longBalls:172,progCarries:44,mins:2700,apps:30,goals:2,assists:1,dribbPast:6,cleanSheets:13},
-    {name:"Cristian Romero",club:"Spurs",tackles:58,tacklePct:65.4,interceptions:48,blocks:26,clearances:78,headedClear:38,ballRec:142,errors:1,groundDW:82,aerialDW:44,duelsWonPct:63.6,foulsComm:28,penConc:1,passes:1180,passAcc:86.4,longBalls:154,progCarries:36,mins:2610,apps:29,goals:2,assists:1,dribbPast:18,cleanSheets:10},
-  ],
-  goalkeeper:[
-    {name:"Alisson Becker",club:"Liverpool",saves:88,savePct:74.6,goalsConceded:30,cleanSheets:16,penSaved:2,errors:0,sweeperClear:22,catches:28,crossesAgainst:44,passes:982,passAcc:86.4,longBalls:288,xgConc:34.2,psxg:32.8,goalsAllowedP90:0.97,mins:2790,apps:31},
-    {name:"David Raya",club:"Arsenal",saves:82,savePct:76.2,goalsConceded:26,cleanSheets:14,penSaved:1,errors:1,sweeperClear:28,catches:32,crossesAgainst:48,passes:1042,passAcc:88.2,longBalls:312,xgConc:28.4,psxg:26.8,goalsAllowedP90:0.84,mins:2790,apps:31},
-    {name:"Ederson",club:"Man City",saves:72,savePct:71.3,goalsConceded:29,cleanSheets:13,penSaved:0,errors:0,sweeperClear:32,catches:24,crossesAgainst:38,passes:1124,passAcc:90.8,longBalls:342,xgConc:30.8,psxg:29.2,goalsAllowedP90:0.97,mins:2700,apps:30},
-    {name:"Andre Onana",club:"Man Utd",saves:94,savePct:68.1,goalsConceded:44,cleanSheets:8,penSaved:1,errors:2,sweeperClear:18,catches:22,crossesAgainst:52,passes:958,passAcc:81.4,longBalls:268,xgConc:42.4,psxg:40.8,goalsAllowedP90:1.47,mins:2790,apps:31},
-  ]
-};
+const SUPABASE_URL = 'https://nqkxvulkxdplxzihmynf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5xa3h2dWxreGRwbHh6aWhteW5mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0Njc4ODUsImV4cCI6MjA5MDA0Mzg4NX0.LG8p-kMszwNQFb0R1yQx7_VyqJw7aAev1tenBFg5mfc';
+
+// Maps Supabase column names → widget key names (matching existing METRICS config)
+function mapRow(r) {
+  return {
+    // identity
+    name:          r.player_name,
+    club:          r.club_name,
+    role:          r.role,
+    mins:          r.minutes_played,
+    apps:          r.appearances,
+    // output
+    goals:         r.goals,
+    assists:       r.assists,
+    xg:            r.xg,
+    xa:            r.xa,
+    npGoals:       r.non_penalty_goals,
+    // shooting
+    shots:         r.shots_total,
+    shotsOT:       r.shots_on_target,
+    shotAcc:       r.shot_accuracy_pct,
+    conv:          r.conversion_rate,
+    penScored:     r.penalties_scored,
+    penTaken:      r.penalties_taken,
+    // creation
+    keyPasses:     r.key_passes,
+    bigChances:    r.big_chances_created,
+    // dribbling
+    dribbles:      r.dribbles_completed,
+    dribblePct:    r.dribble_success_pct,
+    // fouls
+    foulsWon:      r.fouls_won,
+    foulsComm:     r.fouls_committed,
+    // passing
+    passes:        r.passes_total,
+    passAcc:       r.pass_accuracy_pct,
+    fwdPasses:     r.forward_passes,
+    longBalls:     r.long_balls,
+    throughBalls:  r.through_balls,
+    crosses:       r.crosses,
+    chancesCreated:r.chances_created,
+    // defence
+    tackles:       r.tackles,
+    tacklePct:     r.tackle_success_pct,
+    interceptions: r.interceptions,
+    duelsWon:      r.duels_won,
+    duelsTotal:    r.duels_total,
+    duelsWonPct:   r.duels_won_pct,
+    groundDW:      r.ground_duels_won,
+    groundDT:      r.ground_duels_total,
+    aerialDW:      r.aerial_duels_won,
+    aerialDT:      r.aerial_duels_total,
+    ballRec:       r.ball_recoveries,
+    dribbPast:     r.dribbles_past,
+    blocks:        r.blocks,
+    clearances:    r.clearances,
+    headedClear:   r.headed_clearances,
+    errors:        r.errors_leading_goal,
+    penConc:       r.penalties_conceded,
+    progCarries:   r.progressive_carries,
+    // GK
+    cleanSheets:   r.clean_sheets,
+    saves:         r.saves,
+    savePct:       r.save_pct,
+    goalsConceded: r.goals_conceded,
+    penSaved:      r.penalties_saved,
+    sweeperClear:  r.sweeper_clearances,
+    catches:       r.catches,
+    crossesAgainst:r.crosses_against,
+    xgConc:        r.xg_conceded,
+    psxg:          r.psxg,
+    goalsAllowedP90: r.goals_allowed_per90,
+  };
+}
 
 const LOWER_BETTER=['errors','foulsComm','penConc','goalsAllowedP90','goalsConceded','crossesAgainst','dribbPast','xgConc'];
 
@@ -186,78 +234,110 @@ const METRICS={
   ]
 };
 
-let role='attacker',per90=false;
+// All players keyed by role, loaded from Supabase
+let PLAYERS = { attacker:[], midfielder:[], defender:[], goalkeeper:[] };
+let role = 'attacker', per90 = false;
 
-function setRole(r,btn){
-  role=r;
-  document.querySelectorAll('.uw-role').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  populateSelects();render();
-}
+async function loadData() {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/player_stats_per90?select=*&order=player_name.asc`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
 
-function populateSelects(){
-  const pl=PLAYERS[role];
-  ['p1sel','p2sel'].forEach((id,i)=>{
-    const s=document.getElementById(id);
-    s.innerHTML='<option value="">Select player...</option>';
-    pl.forEach((p,idx)=>{
-      const o=document.createElement('option');
-      o.value=idx;o.textContent=p.name+' ('+p.club+')';
-      s.appendChild(o);
+    // Reset
+    PLAYERS = { attacker:[], midfielder:[], defender:[], goalkeeper:[] };
+
+    rows.forEach(r => {
+      const mapped = mapRow(r);
+      if (PLAYERS[mapped.role]) PLAYERS[mapped.role].push(mapped);
     });
-    s.value=i<pl.length?String(i):'';
-  });
+
+    document.getElementById('uw-status').innerHTML = '';
+    populateSelects();
+    render();
+  } catch (e) {
+    document.getElementById('uw-status').innerHTML =
+      `<div class="uw-error">Could not load player data. Please refresh the page.</div>`;
+    document.getElementById('uw-out').innerHTML =
+      '<div class="uw-empty">—</div>';
+  }
 }
 
-function toggleMode(){
-  per90=!per90;
-  const t=document.getElementById('tog');
-  t.classList.toggle('on',per90);
-  document.getElementById('lbl-tot').classList.toggle('on',!per90);
-  document.getElementById('lbl-p90').classList.toggle('on',per90);
+function setRole(r, btn) {
+  role = r;
+  document.querySelectorAll('.uw-role').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  populateSelects();
   render();
 }
 
-function getVal(p,m){
-  let v=p[m.key];
-  if(v===undefined||v===null)return null;
-  if(m.forcep90)return v/(p.mins/90);
-  if(per90&&!m.nop90)return v/(p.mins/90);
+function populateSelects() {
+  const pl = PLAYERS[role];
+  ['p1sel','p2sel'].forEach((id, i) => {
+    const s = document.getElementById(id);
+    s.innerHTML = '<option value="">Select player...</option>';
+    pl.forEach((p, idx) => {
+      const o = document.createElement('option');
+      o.value = idx;
+      o.textContent = p.name + ' (' + p.club + ')';
+      s.appendChild(o);
+    });
+    s.value = (pl.length > i) ? String(i) : '';
+  });
+}
+
+function toggleMode() {
+  per90 = !per90;
+  const t = document.getElementById('tog');
+  t.classList.toggle('on', per90);
+  document.getElementById('lbl-tot').classList.toggle('on', !per90);
+  document.getElementById('lbl-p90').classList.toggle('on', per90);
+  render();
+}
+
+function getVal(p, m) {
+  let v = p[m.key];
+  if (v === undefined || v === null) return null;
+  if (m.forcep90) return v / (p.mins / 90);
+  if (per90 && !m.nop90) return v / (p.mins / 90);
   return v;
 }
 
-function fmt(v,m){
-  if(v===null)return '—';
-  const isPct=m.suf==='%';
-  const isRaw=m.nop90&&!m.forcep90;
-  if(isPct||isRaw)return parseFloat(v.toFixed(1))+(m.suf||'');
-  if(per90||m.forcep90)return parseFloat(v.toFixed(1))+(m.suf||'');
-  return Math.round(v)+(m.suf||'');
+function fmt(v, m) {
+  if (v === null) return '—';
+  const isPct = m.suf === '%';
+  const isRaw = m.nop90 && !m.forcep90;
+  if (isPct || isRaw) return parseFloat(v.toFixed(1)) + (m.suf || '');
+  if (per90 || m.forcep90) return parseFloat(v.toFixed(2)) + (m.suf || '');
+  return Math.round(v) + (m.suf || '');
 }
 
-function render(){
-  const p1i=document.getElementById('p1sel').value;
-  const p2i=document.getElementById('p2sel').value;
-  const out=document.getElementById('uw-out');
-  if(p1i===''||p2i===''){out.innerHTML='<div class="uw-empty">Select two players to compare</div>';return;}
-  if(p1i===p2i){out.innerHTML='<div class="uw-empty">Select two different players</div>';return;}
-  const p1=PLAYERS[role][parseInt(p1i)],p2=PLAYERS[role][parseInt(p2i)];
-  let h=`<div class="uw-names"><div class="uw-pname">${p1.name}<span>${p1.club}</span></div><div class="uw-pname">${p2.name}<span>${p2.club}</span></div></div>`;
-  METRICS[role].forEach(sec=>{
-    h+=`<div class="uw-section">${sec.section}</div>`;
-    sec.rows.forEach(m=>{
-      const v1=getVal(p1,m),v2=getVal(p2,m);
-      const f1=fmt(v1,m),f2=fmt(v2,m);
-      const lowerBetter=LOWER_BETTER.includes(m.key);
-      let c1='bar-trail',c2='bar-trail';
-      if(v1!==null&&v2!==null&&v1!==v2){
-        const p1wins=lowerBetter?v1<v2:v1>v2;
-        if(p1wins)c1='bar-lead';else c2='bar-lead';
+function render() {
+  const p1i = document.getElementById('p1sel').value;
+  const p2i = document.getElementById('p2sel').value;
+  const out = document.getElementById('uw-out');
+  if (p1i === '' || p2i === '') { out.innerHTML = '<div class="uw-empty">Select two players to compare</div>'; return; }
+  if (p1i === p2i) { out.innerHTML = '<div class="uw-empty">Select two different players</div>'; return; }
+  const p1 = PLAYERS[role][parseInt(p1i)], p2 = PLAYERS[role][parseInt(p2i)];
+  let h = `<div class="uw-names"><div class="uw-pname">${p1.name}<span>${p1.club}</span></div><div class="uw-pname">${p2.name}<span>${p2.club}</span></div></div>`;
+  METRICS[role].forEach(sec => {
+    h += `<div class="uw-section">${sec.section}</div>`;
+    sec.rows.forEach(m => {
+      const v1 = getVal(p1, m), v2 = getVal(p2, m);
+      const f1 = fmt(v1, m), f2 = fmt(v2, m);
+      const lowerBetter = LOWER_BETTER.includes(m.key);
+      let c1 = 'bar-trail', c2 = 'bar-trail';
+      if (v1 !== null && v2 !== null && v1 !== v2) {
+        const p1wins = lowerBetter ? v1 < v2 : v1 > v2;
+        if (p1wins) c1 = 'bar-lead'; else c2 = 'bar-lead';
       }
-      const max=Math.max(Math.abs(v1||0),Math.abs(v2||0),0.001);
-      const w1=Math.round((Math.abs(v1||0)/max)*90);
-      const w2=Math.round((Math.abs(v2||0)/max)*90);
-      h+=`<div class="uw-row">
+      const max = Math.max(Math.abs(v1 || 0), Math.abs(v2 || 0), 0.001);
+      const w1 = Math.round((Math.abs(v1 || 0) / max) * 90);
+      const w2 = Math.round((Math.abs(v2 || 0) / max) * 90);
+      h += `<div class="uw-row">
         <div class="uw-val p1">${f1}</div>
         <div class="uw-metric">${m.label}</div>
         <div class="uw-val p2">${f2}</div>
@@ -269,11 +349,11 @@ function render(){
       </div>`;
     });
   });
-  out.innerHTML=h;
+  out.innerHTML = h;
 }
 
-populateSelects();
-render();
+// Kick off
+loadData();
 </script>
 </body>
 </html>
