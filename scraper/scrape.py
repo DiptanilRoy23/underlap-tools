@@ -227,7 +227,6 @@ def parse_stats(raw):
         "sweeper_clearances":  s.get("punches"),
         "catches":             s.get("runsOut"),
         "crosses_against":     s.get("crossesNotClaimed"),
-        "xg_conceded":         s.get("expectedGoalsConceded"),
         "goals_allowed_per90": goals_allowed_per90,
         "chances_created":     s.get("totalAttemptAssist"),
     }
