@@ -227,14 +227,9 @@ def parse_stats(raw):
         "sweeper_clearances":  s.get("punches"),
         "catches":             s.get("runsOut"),
         "crosses_against":     s.get("crossesNotClaimed"),
-        "xg_conceded":         s.get("expectedGoalsConceeded"),
-        "psxg":                s.get("xgSave"),
+        "xg_conceded":         s.get("expectedGoalsConceded"),
         "goals_allowed_per90": goals_allowed_per90,
-        "forward_passes":      None,
-        "through_balls":       None,
-        "chances_created":     None,
-        "headed_clearances":   None,
-        "progressive_carries": None,
+        "chances_created":     s.get("totalAttemptAssist"),
     }
 
 
@@ -332,9 +327,6 @@ def run():
                     total_skipped += 1
                     time.sleep(1.5)
                     continue
-
-                print(json.dumps(raw, indent=2))
-                exit()
 
                 stats = parse_stats(raw)
                 stats["player_id"] = player_id
