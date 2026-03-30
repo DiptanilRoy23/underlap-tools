@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contact — The Underlap</title>
+  <meta name="description" content="Get in touch with The Underlap — for pitches, sponsorship, or feedback." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;900&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #1a1a1a;
+      --green: #6abf69;
+      --green-dim: rgba(106,191,105,0.1);
+      --green-border: rgba(106,191,105,0.3);
+      --text: #f0f0f0;
+      --text-muted: #666;
+      --border: #2e2e2e;
+      --radius: 4px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 6rem 2rem;
+    }
+
+    /* ── BACK LINK ── */
+    .back {
+      position: fixed;
+      top: 2rem;
+      left: 2rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .back:hover { color: var(--green); }
+
+    /* ── WRAPPER ── */
+    .wrap {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    /* ── HEADER ── */
+    .eyebrow {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 300;
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 1rem;
+    }
+
+    h1 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: clamp(3.5rem, 10vw, 5.5rem);
+      line-height: 0.92;
+      text-transform: uppercase;
+      letter-spacing: -0.01em;
+      margin-bottom: 1.5rem;
+    }
+
+    .sub {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 3.5rem;
+    }
+
+    /* ── REASON TABS ── */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 0.45rem 0.9rem;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      background: transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab:hover { border-color: var(--green-border); color: var(--text); }
+
+    .tab.active {
+      background: var(--green-dim);
+      border-color: var(--green-border);
+      color: var(--green);
+    }
+
+    /* ── FORM ── */
+    .form-group { margin-bottom: 1.6rem; }
+
+    label {
+      display: block;
+      font-size: 0.68rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    input, textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      font-size: 0.95rem;
+      padding: 0.6rem 0;
+      outline: none;
+      transition: border-color 0.2s;
+      border-radius: 0;
+    }
+
+    input::placeholder, textarea::placeholder { color: #444; }
+
+    input:focus, textarea:focus { border-color: var(--green-border); }
+
+    textarea {
+      resize: none;
+      min-height: 110px;
+      line-height: 1.65;
+    }
+
+    .hp { display: none; }
+
+    /* ── SUBMIT ── */
+    .submit-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 2.5rem;
+    }
+
+    .submit-note {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .submit-btn {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 0.85rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #111;
+      background: var(--green);
+      border: none;
+      border-radius: var(--radius);
+      padding: 0.7rem 1.4rem;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+
+    .submit-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .submit-btn:active { transform: translateY(0); }
+    .submit-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+
+    /* ── SUCCESS ── */
+    .success {
+      display: none;
+      padding: 4rem 0;
+    }
+
+    .success.visible { display: block; }
+    form.submitted { display: none; }
+
+    .success-label {
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 1rem;
+    }
+
+    .success-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 900;
+      font-size: 2.5rem;
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 1rem;
+    }
+
+    .success-msg {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* ── FOOTER ── */
+    .foot {
+      margin-top: 5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 1.5rem;
+    }
+
+    .foot a {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .foot a:hover { color: var(--green); }
+
+    /* ── MOBILE ── */
+    @media (max-width: 500px) {
+      body { padding: 5rem 1.5rem; }
+      .submit-row { flex-direction: column; align-items: flex-start; gap: 1.2rem; }
+      .submit-btn { width: 100%; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <a class="back" href="https://www.theunderlap.com/">← The Underlap</a>
+
+  <div class="wrap">
+
+    <header>
+      <p class="eyebrow">The Underlap</p>
+      <h1>Get in<br>touch.</h1>
+      <p class="sub">Feedback, pitches, business enquiries.<br>Responses within a few days.</p>
+    </header>
+
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-subject="General feedback — The Underlap">Feedback</button>
+      <button class="tab" data-subject="Submission / pitch — The Underlap">Submission / Pitch</button>
+      <button class="tab" data-subject="Business enquiry — The Underlap">Business</button>
+    </div>
+
+    <form id="contact-form" action="https://formspree.io/f/xeepodnn" method="POST">
+      <input class="hp" type="text" name="_gotcha" tabindex="-1" autocomplete="off" />
+      <input type="hidden" name="_subject" id="subject-input" value="General feedback — The Underlap" />
+
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" placeholder="Your name" required />
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="your@email.com" required />
+      </div>
+
+      <div class="form-group">
+        <label for="message">Message</label>
+        <textarea id="message" name="message" placeholder="What's on your mind?" required></textarea>
+      </div>
+
+      <div class="submit-row">
+        <span class="submit-note">No spam. Ever.</span>
+        <button class="submit-btn" type="submit">Send →</button>
+      </div>
+    </form>
+
+    <div class="success" id="success">
+      <p class="success-label">Message received</p>
+      <p class="success-title">Thanks for reaching out.</p>
+      <p class="success-msg">I'll get back to you within a few days.</p>
+    </div>
+
+    <div class="foot">
+      <a href="https://x.com/TheUnderlap1" target="_blank" rel="noopener">X ↗</a>
+      <a href="https://instagram.com/theunderlap" target="_blank" rel="noopener">Instagram ↗</a>
+      <a href="https://tools.theunderlap.com" target="_blank" rel="noopener">Data Hub ↗</a>
+    </div>
+
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll('.tab');
+    const subjectInput = document.getElementById('subject-input');
+
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        subjectInput.value = tab.dataset.subject;
+      });
+    });
+
+    const form = document.getElementById('contact-form');
+    const success = document.getElementById('success');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('.submit-btn');
+      btn.textContent = 'Sending…';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(form.action, {
+          method: 'POST',
+          body: new FormData(form),
+          headers: { Accept: 'application/json' }
+        });
+
+        if (res.ok) {
+          form.classList.add('submitted');
+          success.classList.add('visible');
+        } else {
+          btn.textContent = 'Error — try again';
+          btn.disabled = false;
+        }
+      } catch {
+        btn.textContent = 'Network error — try again';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
